@@ -52,6 +52,8 @@ public class TouchViewGroup extends View {
                 int count = event.getPointerCount();
                 for (int i = 0; i < count; i++) {
                     parseEvent(event.getPointerId(i), event);
+                    cleanPoints(event);
+                    invalidate();
                 }
                 return true;
             }
@@ -90,24 +92,12 @@ public class TouchViewGroup extends View {
                 p.point.x = Math.round(event.getX(pointerId));
                 p.point.y = Math.round(event.getY(pointerId));
                 p.paint.setStrokeWidth(size * 1000.0f);
-                Log.v(TAG, String.format("motion event at size %s pressure %s x %s y %s (total " +
-                                "points %s)", size, pressure,
-                        p.point.x, p.point.y, event.getPointerCount()));
-                invalidate();
+                Log.v(TAG, String.format(
+                        "motion event at size %s pressure %s x %s y %s (total " + "points %s)",
+                        size, pressure, p.point.x, p.point.y, event.getPointerCount()));
                 break;
             case MotionEvent.ACTION_UP:
                 Log.v(TAG, "action UP points = " + event.getPointerCount());
-                int index = event.getActionIndex();
-                int count = event.getPointerCount();
-                HashMap<Integer, SmartPoint> copy = new HashMap<>();
-                for (int i = 0; i < count; i++) {
-                    int id = event.getPointerId(i);
-                    copy.put(id, mPoints.get(id));
-                }
-                //replace.  note this is probably really memory hungry
-                mPoints = copy;
-                mPoints.remove(index);
-                invalidate();
                 break;
             default:
                 Log.w(TAG, "unknown touch event.  action = " + event.getAction());
@@ -116,11 +106,25 @@ public class TouchViewGroup extends View {
     }
 
 
+    private void cleanPoints(MotionEvent event) {
+        int count = event.getPointerCount();
+        HashMap<Integer, SmartPoint> copy = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            int id = event.getPointerId(i);
+            copy.put(id, mPoints.get(id));
+        }
+        //replace.  note this is probably really memory hungry
+        mPoints = copy;
+        if (MotionEvent.ACTION_UP == event.getAction()) {
+            mPoints.remove(event.getActionIndex());
+        }
+    }
+
+
     private SmartPoint generatePoint(int pointerId, MotionEvent event) {
         SmartPoint p;
-        if (mPoints.size() < pointerId+1) {
+        if (mPoints.get(pointerId) == null) {
             p = new SmartPoint();
-            p.point = new Point();
             mPoints.put(pointerId, p);
             Paint paint = new Paint();
             paint.setColor(getColor(pointerId));
@@ -133,7 +137,7 @@ public class TouchViewGroup extends View {
 
 
     private int getColor(int position) {
-        if (position <= COLOR_MAP.length) {
+        if (position <= COLOR_MAP.length-1) {
             return COLOR_MAP[position];
         }
         return COLOR_MAP[COLOR_MAP.length -1];
@@ -146,6 +150,10 @@ public class TouchViewGroup extends View {
         if (mPoints.size() > 0) {
             for (Integer pointId : mPoints.keySet()) {
                 SmartPoint point = mPoints.get(pointId);
+                if (point == null) {
+                    Log.e(TAG, "null object at index " + pointId);
+                    continue;
+                }
                 //draw crosshairs
                 //vertical
                 canvas.drawLine(point.point.x, 0.0f, point.point.x, getMeasuredHeight(), point
@@ -160,7 +168,7 @@ public class TouchViewGroup extends View {
     }
 
     static class SmartPoint {
-        Point point;
+        final Point point = new Point();
         Paint paint;
         float pressure;
         float size;
