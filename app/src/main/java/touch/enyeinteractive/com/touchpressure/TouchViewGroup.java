@@ -49,10 +49,36 @@ public class TouchViewGroup extends View {
         setOnTouchListener(new OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                int count = event.getPointerCount();
-                for (int i = 0; i < count; i++) {
-                    parseEvent(event.getPointerId(i), event);
-                    cleanPoints(event);
+                int actionId = event.getActionIndex();
+                boolean handled = false;
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_UP:
+                        Log.v(TAG, "pointer up " + actionId);
+                        removePoint(actionId);
+                        handled = true;
+                        break;
+                    case MotionEvent.ACTION_POINTER_UP:
+                        mPoints.clear();
+                        handled = true;
+                        break;
+                    case MotionEvent.ACTION_POINTER_DOWN:
+                    case MotionEvent.ACTION_DOWN:
+                        Log.v(TAG, "pointer down" + actionId);
+                        addPoint(actionId, event);
+                        parseEvent(actionId, event);
+                        handled = true;
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        //loop
+                        int count = event.getPointerCount();
+                        for (int i = 0; i < count; i++) {
+                            parseEvent(event.getPointerId(i), event);
+                        }
+                        handled = true;
+                        break;
+                }
+                //                    cleanPoints(event);
+                if (handled) {
                     invalidate();
                 }
                 return true;
@@ -61,17 +87,27 @@ public class TouchViewGroup extends View {
     }
 
 
+    private void removePoint(int actionId) {
+        mPoints.remove(actionId);
+    }
+
+
+    private void addPoint(int actionId, MotionEvent event) {
+        SmartPoint p = generatePoint(actionId, event);
+        mPoints.put(actionId, p);
+    }
+
+
     private void parseEvent(int pointerId, MotionEvent event) {
         SmartPoint p;
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-            case MotionEvent.ACTION_POINTER_DOWN:
+        switch (event.getActionMasked()) {
             case MotionEvent.ACTION_MOVE:
                 float size;
                 try {
                     size = event.getSize(pointerId);
                 } catch (IllegalArgumentException e) {
                     Log.e(TAG, e.getMessage(), e);
+                    mPoints.remove(pointerId);
                     return;
                 }
                 /**
@@ -92,12 +128,9 @@ public class TouchViewGroup extends View {
                 p.point.x = Math.round(event.getX(pointerId));
                 p.point.y = Math.round(event.getY(pointerId));
                 p.paint.setStrokeWidth(size * 1000.0f);
-                Log.v(TAG, String.format(
-                        "motion event at size %s pressure %s x %s y %s (total " + "points %s)",
-                        size, pressure, p.point.x, p.point.y, event.getPointerCount()));
-                break;
-            case MotionEvent.ACTION_UP:
-                Log.v(TAG, "action UP points = " + event.getPointerCount());
+//                Log.v(TAG, String.format(
+//                        "motion event at size %s pressure %s x %s y %s (total " + "points %s)",
+//                        size, pressure, p.point.x, p.point.y, event.getPointerCount()));
                 break;
             default:
                 Log.w(TAG, "unknown touch event.  action = " + event.getAction());
