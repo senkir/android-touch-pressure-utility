@@ -27,6 +27,7 @@ public class TouchViewGroup extends View {
             Color.GRAY
     };
     private Map<Integer, SmartPoint> mPoints = new HashMap<>();
+    private Map<Integer, TouchHistory> mLines = new HashMap<>();
 
     public TouchViewGroup(Context context) {
         super(context);
@@ -54,12 +55,14 @@ public class TouchViewGroup extends View {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_UP:
                         Log.v(TAG, "pointer up " + actionId);
-                        removePoint(actionId);
+                        mPoints.clear();
+                        mLines.clear();
                         handled = true;
                         break;
                     case MotionEvent.ACTION_POINTER_UP:
-                        mPoints.clear();
                         handled = true;
+                        removePoint(actionId);
+                        mLines.remove(actionId);
                         break;
                     case MotionEvent.ACTION_POINTER_DOWN:
                     case MotionEvent.ACTION_DOWN:
@@ -89,12 +92,16 @@ public class TouchViewGroup extends View {
 
     private void removePoint(int actionId) {
         mPoints.remove(actionId);
+        mLines.remove(actionId);
     }
 
 
     private void addPoint(int actionId, MotionEvent event) {
         SmartPoint p = generatePoint(actionId, event);
         mPoints.put(actionId, p);
+        Paint paint = new Paint();
+        paint.setColor(getColor(actionId));
+        mLines.put(actionId, new TouchHistory(paint));
     }
 
 
@@ -128,9 +135,16 @@ public class TouchViewGroup extends View {
                 p.point.x = Math.round(event.getX(pointerId));
                 p.point.y = Math.round(event.getY(pointerId));
                 p.paint.setStrokeWidth(size * 1000.0f);
+                if (mLines.get(pointerId) != null) {
+                    mLines.get(pointerId).add(new Point(p.point));
+                }
 //                Log.v(TAG, String.format(
 //                        "motion event at size %s pressure %s x %s y %s (total " + "points %s)",
 //                        size, pressure, p.point.x, p.point.y, event.getPointerCount()));
+                if (event.getHistorySize() >0) {
+                    Log.w(TAG, "touch events in buffer " + event.getHistorySize());
+
+                }
                 break;
             default:
                 Log.w(TAG, "unknown touch event.  action = " + event.getAction());
@@ -180,24 +194,30 @@ public class TouchViewGroup extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (mPoints.size() > 0) {
-            for (Integer pointId : mPoints.keySet()) {
-                SmartPoint point = mPoints.get(pointId);
-                if (point == null) {
-                    Log.e(TAG, "null object at index " + pointId);
-                    continue;
-                }
-                //draw crosshairs
-                //vertical
-                canvas.drawLine(point.point.x, 0.0f, point.point.x, getMeasuredHeight(), point
-                        .paint);
-                //horizontal
-                canvas.drawLine(0.0f, point.point.y, getMeasuredWidth(), point.point.y, point
-                        .paint);
-                //draw circle
-                canvas.drawCircle(point.point.x, point.point.y, point.size * 5000.0f, point.paint);
+        if (!mLines.isEmpty()) {
+            for (Integer id : mLines.keySet()) {
+                TouchHistory h = mLines.get(id);
+                h.draw(canvas);
             }
         }
+//        if (mPoints.size() > 0) {
+//            for (Integer pointId : mPoints.keySet()) {
+//                SmartPoint point = mPoints.get(pointId);
+//                if (point == null) {
+//                    Log.e(TAG, "null object at index " + pointId);
+//                    continue;
+//                }
+//                //draw crosshairs
+//                //vertical
+//                canvas.drawLine(point.point.x, 0.0f, point.point.x, getMeasuredHeight(), point
+//                        .paint);
+//                //horizontal
+//                canvas.drawLine(0.0f, point.point.y, getMeasuredWidth(), point.point.y, point
+//                        .paint);
+//                //draw circle
+//                canvas.drawCircle(point.point.x, point.point.y, point.size * 5000.0f, point.paint);
+//            }
+//        }
     }
 
     static class SmartPoint {
